@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Game Cocokkan Ayat - Semua Surat</title>
+  <title>Game Cocokkan Ayat - Dengan Efek Suara</title>
   <style>
     * {
       box-sizing: border-box;
@@ -351,16 +351,33 @@
       font-weight: bold;
       color: #166088;
     }
+
+    .sound-control {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
-  <!--
   <div class="orientation-warning">
     <p>Putar perangkat Anda ke mode landscape</p>
     <div class="rotate-icon">🔄</div>
     <p>Untuk pengalaman bermain yang lebih baik</p>
   </div>
--->
+
+  <div class="sound-control" id="soundControl" onclick="toggleSound()">🔊</div>
+
   <!-- Login Screen -->
   <div class="login-container" id="loginScreen">
     <h1>Game Mencocokkan Ayat</h1>
@@ -444,7 +461,7 @@
   <!-- Result Screen -->
   <div class="container hidden" id="resultScreen">
     <header>
-      <h1>Hasil Game</h1>
+      <h1>Alhamdulillah</h1>
       <p>Selamat! Anda telah menyelesaikan game</p>
     </header>
     
@@ -486,6 +503,23 @@
       <button class="btn-primary" onclick="restartGame()">Main Lagi</button>
     </div>
   </div>
+
+  <!-- Audio Elements -->
+  <audio id="clickSound" preload="auto">
+    <source src="click.wav" type="audio/mpeg">
+  </audio>
+  <audio id="correctSound" preload="auto">
+    <source src="correct.wav" type="audio/mpeg">
+  </audio>
+  <audio id="wrongSound" preload="auto">
+    <source src="wrong_5.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="completeSound" preload="auto">
+    <source src="yay.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="finishSound" preload="auto">
+    <source src="success.mp3" type="audio/mpeg">
+  </audio>
 
   <script>
     const dataSurat = {
@@ -575,6 +609,27 @@
     let playerName = "";
     let playerClass = "";
     let completedSurat = 0;
+    let checkCount = 0;
+    let soundEnabled = true;
+
+    // Audio elements
+    const clickSound = document.getElementById("clickSound");
+    const correctSound = document.getElementById("correctSound");
+    const wrongSound = document.getElementById("wrongSound");
+    const completeSound = document.getElementById("completeSound");
+    const finishSound = document.getElementById("finishSound");
+
+    function playSound(sound) {
+      if (soundEnabled) {
+        sound.currentTime = 0;
+        sound.play().catch(e => console.log("Audio play failed:", e));
+      }
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      document.getElementById("soundControl").textContent = soundEnabled ? "🔊" : "🔇";
+    }
 
     function startGame() {
       playerName = document.getElementById("playerName").value.trim();
@@ -599,6 +654,7 @@
       ayatData = dataSurat[suratList[currentSuratIndex]];
       selectedArabic = null;
       pairs = {};
+      checkCount = 0;
       
       totalCount = ayatData.length;
       
@@ -625,7 +681,10 @@
           <div class="arabic">${ayat.arabic}</div>
         `;
         div.dataset.index = index;
-        div.onclick = () => selectArabic(div);
+        div.onclick = () => {
+          playSound(clickSound);
+          selectArabic(div);
+        };
         arabicList.appendChild(div);
       });
 
@@ -638,7 +697,10 @@
           <div class="translation">${ayat.arti}</div>
         `;
         div.dataset.index = originalIndex;
-        div.onclick = () => selectTranslation(div);
+        div.onclick = () => {
+          playSound(clickSound);
+          selectTranslation(div);
+        };
         translationList.appendChild(div);
       });
     }
@@ -713,6 +775,9 @@
     }
 
     function checkAnswers() {
+      playSound(clickSound);
+      checkCount++; // Tambah jumlah pengecekan
+      
       let correct = 0;
       const svg = document.getElementById("connector");
 
@@ -734,22 +799,25 @@
         }
       });
 
-      // Calculate score
-      correctCount = correct;
-      wrongCount = Object.keys(pairs).length - correct;
-      score += (correct * 10) - (wrongCount * 2);
-      
-      document.getElementById("score").textContent = score;
-      document.getElementById("progress").textContent = `${correctCount}/${totalCount}`;
-      updateProgressBar();
-
-      if (correctCount === totalCount) {
+      // Calculate score - hanya jika semua pasangan benar
+      if (correct === totalCount) {
+        playSound(correctSound);
+        
+        // Hitung nilai: 100 untuk sempurna, dikurangi 2 untuk setiap pengecekan tambahan
+        const suratScore = Math.max(0, 100 - ((checkCount - 1) * 2));
+        score += suratScore;
+        
+        correctCount += correct;
         completedSurat++;
         
+        document.getElementById("score").textContent = score;
+        document.getElementById("progress").textContent = `${correct}/${totalCount}`;
+        updateProgressBar();
+
         // Check if all surat are completed
         if (currentSuratIndex < suratList.length - 1) {
           // Move to next surat
-          document.getElementById("result").textContent = `✅ Surat ${suratList[currentSuratIndex]} selesai!`;
+          document.getElementById("result").textContent = `✅ Surat ${suratList[currentSuratIndex]} selesai! +${suratScore} poin`;
           setTimeout(() => {
             currentSuratIndex++;
             initGame();
@@ -757,23 +825,28 @@
         } else {
           // All surat completed
           clearInterval(timerInterval);
+          playSound(completeSound);
           setTimeout(showResult, 1000);
         }
       } else {
-        document.getElementById("result").textContent = `Masih ada ${totalCount - correctCount} yang salah. Perbaiki dan coba lagi!`;
+        // Jika masih ada kesalahan
+        playSound(wrongSound);
+        document.getElementById("result").textContent = `Masih ada ${totalCount - correct} yang salah. Perbaiki dan coba lagi!`;
       }
     }
 
     function updateProgressBar() {
-      const progress = (correctCount / totalCount) * 100;
+      const progress = (Object.keys(pairs).length / totalCount) * 100;
       document.getElementById("progress-bar").style.width = `${progress}%`;
     }
 
     function resetGame() {
+      playSound(clickSound);
       initGame();
     }
 
     function showResult() {
+      playSound(finishSound);
       document.getElementById("gameScreen").classList.add("hidden");
       document.getElementById("resultScreen").classList.remove("hidden");
       
@@ -786,24 +859,26 @@
       document.getElementById("resultClass").textContent = playerClass;
       document.getElementById("resultScore").textContent = score;
       document.getElementById("resultCorrect").textContent = correctCount;
-      document.getElementById("resultWrong").textContent = wrongCount;
+      document.getElementById("resultWrong").textContent = checkCount - completedSurat; // Salah = total cek - jumlah surat
       document.getElementById("resultTime").textContent = timeString;
       document.getElementById("resultSurat").textContent = `${completedSurat}/${suratList.length}`;
     }
 
     function sendToWhatsApp() {
+      playSound(clickSound);
       const phoneNumber = "+6281939352081";
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       const minutes = Math.floor(elapsed / 60);
       const seconds = elapsed % 60;
       const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      const wrongAnswers = checkCount - completedSurat;
       
       let message = `*HASIL GAME COCOKKAN AYAT*%0A%0A`;
       message += `Nama: ${playerName}%0A`;
       message += `Kelas: ${playerClass}%0A`;
       message += `Nilai: ${score}%0A`;
       message += `Jumlah Benar: ${correctCount}%0A`;
-      message += `Jumlah Salah: ${wrongCount}%0A`;
+      message += `Jumlah Salah: ${wrongAnswers}%0A`;
       message += `Waktu: ${timeString}%0A`;
       message += `Surat Terselesaikan: ${completedSurat}/${suratList.length}%0A%0A`;
       message += `*Selamat!* 🎉`;
@@ -813,11 +888,13 @@
     }
 
     function restartGame() {
+      playSound(clickSound);
       currentSuratIndex = 0;
       score = 0;
       correctCount = 0;
       wrongCount = 0;
       completedSurat = 0;
+      checkCount = 0;
       
       document.getElementById("resultScreen").classList.add("hidden");
       document.getElementById("gameScreen").classList.remove("hidden");
@@ -839,9 +916,9 @@
       document.getElementById("playerName").focus();
       
       // Try to lock orientation on mobile
-      //if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-        //lockOrientation();
-      //}
+      if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        lockOrientation();
+      }
     };
   </script>
 </body>
